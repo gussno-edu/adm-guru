@@ -2419,8 +2419,8 @@ async function saveJurnal(){
       const idx = jurnalList.findIndex(j => String(j.id) === String(editId));
       if(idx > -1) jurnalList[idx] = data;
     }else{
-      const newId = await idbAdd('jurnal', data);
-      data.id = newId;
+      data.id = crypto.randomUUID();
+      await idbAdd('jurnal', data);
       jurnalList.push(data);
       await cloudSaveRowNow('jurnal', data);
     }
@@ -2864,8 +2864,8 @@ async function saveNilaiSesi(){
       if(inp.value === '' || inp.value === null) continue;
       const nilaiVal = Math.max(0, Math.min(100, Number(inp.value)));
       const data = {siswaId: inp.dataset.siswaId, kelasId, mapelId, komponen, namaPenilaian, nilai: nilaiVal, tanggal};
-      const newId = await idbAdd('nilai', data);
-      data.id = newId;
+      data.id = crypto.randomUUID();
+      await idbAdd('nilai', data);
       nilaiList.push(data);
       untukDisimpanDiCloud.push(data);
       jumlahDiisi++;
@@ -3152,8 +3152,8 @@ async function savePerangkat(){
       const idx = perangkatList.findIndex(p => String(p.id) === String(editId));
       if(idx > -1) perangkatList[idx] = data;
     }else{
-      const perangkatId = await idbAdd('perangkat', data);
-      data.id = perangkatId;
+      data.id = crypto.randomUUID();
+      await idbAdd('perangkat', data);
       perangkatList.push(data);
       await cloudSaveRowNow('perangkat', data);
     }
@@ -3325,8 +3325,8 @@ async function saveCatatan(){
       const idx = catatanSiswaList.findIndex(c => String(c.id) === String(editId));
       if(idx > -1) catatanSiswaList[idx] = data;
     }else{
-      const newId = await idbAdd('catatan_siswa', data);
-      data.id = newId;
+      data.id = crypto.randomUUID();
+      await idbAdd('catatan_siswa', data);
       catatanSiswaList.push(data);
       await cloudSaveRowNow('catatan_siswa', data);
     }
@@ -3460,7 +3460,8 @@ async function reconcileRemedialRoster(){
         hadir: false,
         nilaiBaru: null
       };
-      rosterBaru.id = await idbAdd('remedial_siswa', rosterBaru);
+      rosterBaru.id = crypto.randomUUID();
+      await idbAdd('remedial_siswa', rosterBaru);
       remedialSiswaList.push(rosterBaru);
     }
   }
@@ -3553,15 +3554,16 @@ async function saveRemedialProgram(){
       if(idx > -1) remedialList[idx] = data;
     }else{
       if(remedialList.some(r => r.sesiKey === sesiKey)){ showToast('Sesi ini sudah memiliki program remedial & pengayaan.', 'err'); return; }
-      const newId = await idbAdd('remedial', data);
+      const newId = crypto.randomUUID();
       data.id = newId;
+      await idbAdd('remedial', data);
       remedialList.push(data);
       await cloudSaveRowNow('remedial', data);
       const kkm = settings.kkm;
       for(const n of sesiEntries){
         const rosterData = { remedialId: newId, siswaId: n.siswaId, kelompok: n.nilai < kkm ? 'remedial' : 'pengayaan', nilaiAwal: n.nilai, hadir: false, nilaiBaru: null };
-        const rid = await idbAdd('remedial_siswa', rosterData);
-        rosterData.id = rid;
+        rosterData.id = crypto.randomUUID();
+        await idbAdd('remedial_siswa', rosterData);
         remedialSiswaList.push(rosterData);
         await cloudSaveRowNow('remedial_siswa', rosterData);
       }
