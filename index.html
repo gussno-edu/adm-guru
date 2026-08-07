@@ -681,6 +681,7 @@
       <div id="cloud-status" style="font-size:12px;font-weight:600;color:#6FCF97;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">☁️ Memeriksa sesi...</div>
       <div id="net-status" style="font-size:10px;font-weight:700;letter-spacing:.3px;flex-shrink:0;">🟢 ONLINE</div>
     </div>
+    <div id="pending-sync-badge" onclick="retryPendingQueue()" style="display:none;cursor:pointer;margin:-6px 10px 14px;padding:6px 10px;border-radius:8px;background:rgba(240,180,40,0.18);color:#F0B428;font-size:11.5px;font-weight:700;text-align:center;" title="Klik untuk coba kirim sekarang"></div>
 
     <div class="nav-item active" data-tab="dashboard"><span class="ic">&#9737;</span> Dashboard</div>
     <div class="nav-item" data-tab="master"><span class="ic">&#128218;</span> Kelas &amp; Mapel</div>
@@ -695,7 +696,7 @@
     <div class="nav-item" data-tab="pesan"><span class="ic">&#128231;</span> Pesan dari Kepsek <span id="pesan-badge" style="display:none;background:#D9534F;color:#fff;border-radius:100px;font-size:10.5px;font-weight:700;padding:1px 7px;margin-left:4px;">0</span></div>
     <div class="nav-item" data-tab="pengaturan"><span class="ic">&#9881;</span> Pengaturan</div>
     <a class="nav-item" href="https://www.smpn4semin.sch.id/" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;"><span class="ic">&#127760;</span> Website Sekolah</a>
-    <a class="nav-item" href="https://gussno-edu.github.io/adm-wali/" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;"><span class="ic">&#127891;</span> Administrasi Wali Kelas</a>
+    <a class="nav-item" href="https://wali-adm.netlify.app/" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;"><span class="ic">&#127891;</span> Administrasi Wali Kelas</a>
     <div class="sidebar-foot">
       <button class="theme-toggle" id="logout-btn" style="width:100%;justify-content:center;margin-bottom:8px;" onclick="doLogoutGate()">🔓 Keluar</button>
       <div class="theme-toggle" id="theme-toggle-btn"><span id="theme-toggle-label">Mode Gelap</span><span id="theme-toggle-ic">&#9789;</span></div>
@@ -4211,17 +4212,84 @@ async function pullTableFromCloud(table){
   await applyCloudRowsToLocal(table, res.rows);
 }
 
+// ================================================================
+//  ANTREAN COBA-KIRIM-ULANG (mengisi janji "akan tersinkron nanti" yang
+//  sebelumnya cuma komentar tanpa mekanisme sungguhan).
+//
+//  Kalau cloudSaveRowNow/cloudDeleteRowNow gagal karena PUTUS KONEKSI (bukan
+//  ditolak server), operasinya dicatat di sini -- disimpan ke localStorage
+//  (bukan cuma variabel di memori) supaya TAHAN REFRESH. Antrean ini dicoba
+//  lagi otomatis: (1) begitu koneksi internet kembali, dan (2) begitu app
+//  dibuka lagi -- SEBELUM proses tarik-ulang dari cloud sempat berjalan,
+//  supaya data yang belum sempat terkirim tidak keburu tertimpa/hilang.
+const PENDING_QUEUE_KEY = 'guru_pending_cloud_ops_v1';
+
+function getPendingQueue(){
+  try{ return JSON.parse(localStorage.getItem(PENDING_QUEUE_KEY) || '[]'); }
+  catch(e){ return []; }
+}
+function setPendingQueue(q){
+  try{ localStorage.setItem(PENDING_QUEUE_KEY, JSON.stringify(q)); }catch(e){}
+}
+function queuePendingOp(op){
+  const q = getPendingQueue();
+  // Kalau ada antrean lama untuk baris yang SAMA, timpa dengan yang terbaru
+  // (tidak perlu kirim versi lama-lama kalau sudah ada versi lebih baru).
+  const idx = q.findIndex(x => x.table === op.table && x.rowId === op.rowId);
+  if(idx > -1) q[idx] = op; else q.push(op);
+  setPendingQueue(q);
+  updatePendingIndicator();
+}
+function updatePendingIndicator(){
+  const n = getPendingQueue().length;
+  const el = document.getElementById('pending-sync-badge');
+  if(el){
+    if(n > 0){ el.style.display = ''; el.textContent = '⏳ ' + n + ' perubahan belum tersinkron'; }
+    else { el.style.display = 'none'; }
+  }
+}
+let retryingPendingQueue = false;
+async function retryPendingQueue(){
+  if(retryingPendingQueue || !cloudToken) return;
+  const q = getPendingQueue();
+  if(q.length === 0) return;
+  retryingPendingQueue = true;
+  const stillFailed = [];
+  for(const op of q){
+    try{
+      let res;
+      if(op.action === 'delete'){
+        res = await cloudCall('deleteRow', {table: op.table, rowId: op.rowId});
+      } else {
+        res = await cloudCall('saveRow', {table: op.table, rowId: op.rowId, data: op.data});
+      }
+      if(!res.ok && res.error !== 'Baris tidak ditemukan') stillFailed.push(op);
+    }catch(e){ stillFailed.push(op); }
+  }
+  setPendingQueue(stillFailed);
+  updatePendingIndicator();
+  if(stillFailed.length === 0 && q.length > 0){
+    showToast('✅ Semua perubahan yang tertunda berhasil tersinkron ke server.', 'ok');
+  }
+  retryingPendingQueue = false;
+}
+window.addEventListener('online', retryPendingQueue);
+
 async function cloudSaveRowNow(table, localObj){
   if(!cloudToken) return localObj;
+  const copy = Object.assign({}, localObj);
+  const rowId = copy.id;
+  delete copy.id;
   try{
-    const copy = Object.assign({}, localObj);
-    const rowId = copy.id;
-    delete copy.id;
     const res = await cloudCall('saveRow', {table, rowId, data: copy});
     if(!res.ok){
       showToast(res.message || res.error || ('Gagal sinkron '+table+' ke server.'), 'err');
     }
-  }catch(e){ console.warn('cloudSaveRowNow gagal (tetap tersimpan lokal, akan tersinkron nanti):', e); }
+  }catch(e){
+    console.warn('cloudSaveRowNow gagal (tersimpan lokal, akan dicoba lagi otomatis):', e);
+    showToast('⚠ Tidak ada koneksi -- perubahan tersimpan di perangkat ini, akan otomatis dikirim begitu online kembali.', 'err');
+    queuePendingOp({table, rowId, data: copy, action:'save'});
+  }
   return localObj;
 }
 
@@ -4230,7 +4298,11 @@ async function cloudDeleteRowNow(table, id){
   try{
     const res = await cloudCall('deleteRow', {table, rowId:id});
     if(!res.ok && res.error !== 'Baris tidak ditemukan') showToast(res.message || res.error || 'Gagal hapus di server', 'err');
-  }catch(e){ console.warn('cloudDeleteRowNow gagal:', e); }
+  }catch(e){
+    console.warn('cloudDeleteRowNow gagal (akan dicoba lagi otomatis):', e);
+    showToast('⚠ Tidak ada koneksi -- penghapusan akan otomatis dicoba lagi begitu online kembali.', 'err');
+    queuePendingOp({table, rowId:id, action:'delete'});
+  }
 }
 
 async function initialSyncCollabTable(table){
@@ -4519,6 +4591,7 @@ async function startAppAfterLogin(){
     await Promise.race([
       (async () => {
         await loadAll();
+        await retryPendingQueue(); // kirim dulu perubahan offline yang tertunda, SEBELUM ditarik-ulang dari cloud
         await Promise.all([resolveInitialSync(), resolveSettingsSync()]);
         await refreshFromIndexedDB(true);
       })(),
