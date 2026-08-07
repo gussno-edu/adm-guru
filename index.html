@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Administrasi Guru (Pro)</title>
+<title>Administrasi Guru</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+CiAgPHJlY3QgeD0iMiIgeT0iMiIgd2lkdGg9IjYwIiBoZWlnaHQ9IjYwIiByeD0iMTQiIGZpbGw9IiMxRjJFNEEiLz4KICA8cmVjdCB4PSIxNSIgeT0iMTMiIHdpZHRoPSIzMCIgaGVpZ2h0PSI0MSIgcng9IjQiIGZpbGw9IiNGQUY3RjAiLz4KICA8cmVjdCB4PSIyNCIgeT0iOCIgd2lkdGg9IjEyIiBoZWlnaHQ9IjkiIHJ4PSIyIiBmaWxsPSIjQzA4QTJFIi8+CiAgPHJlY3QgeD0iMjAiIHk9IjI3IiB3aWR0aD0iMTgiIGhlaWdodD0iMyIgcng9IjEuNSIgZmlsbD0iI0M3Q0NEOCIvPgogIDxyZWN0IHg9IjIwIiB5PSIzNSIgd2lkdGg9IjE4IiBoZWlnaHQ9IjMiIHJ4PSIxLjUiIGZpbGw9IiNDN0NDRDgiLz4KICA8cmVjdCB4PSIyMCIgeT0iNDMiIHdpZHRoPSIxMSIgaGVpZ2h0PSIzIiByeD0iMS41IiBmaWxsPSIjQzdDQ0Q4Ii8+CiAgPGcgdHJhbnNmb3JtPSJyb3RhdGUoNDUgMzIgMzIpIj4KICAgIDxyZWN0IHg9IjI5IiB5PSI5IiB3aWR0aD0iNiIgaGVpZ2h0PSIzMiIgcng9IjEuNSIgZmlsbD0iI0MwOEEyRSIvPgogICAgPHJlY3QgeD0iMjkiIHk9IjUiIHdpZHRoPSI2IiBoZWlnaHQ9IjYiIHJ4PSIxIiBmaWxsPSIjOEE1RTFFIi8+CiAgICA8cG9seWdvbiBwb2ludHM9IjI5LDQxIDM1LDQxIDMyLDQ5IiBmaWxsPSIjNEEzNDE3Ii8+CiAgICA8cG9seWdvbiBwb2ludHM9IjMwLjQsNDEgMzMuNiw0MSAzMiw0NS41IiBmaWxsPSIjRjJFRUUzIi8+CiAgPC9nPgo8L3N2Zz4K">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -639,6 +639,14 @@
   .stat-grid-main .stat:nth-child(3) .num{color:var(--accent-plum);}
   .stat-grid-main .stat:nth-child(4){border-left-color:var(--success);}
   .stat-grid-main .stat:nth-child(4) .num{color:var(--success);}
+
+  /* Pengaman tambahan: kalau halaman ini di-print LANGSUNG (Ctrl+P), bukan lewat
+     tombol "Cetak" khusus yang sudah membangun dokumen terpisah -- pastikan warna
+     latar per-hari (Jurnal Mengajar) & badge warna kelas tidak ikut tercetak. */
+  @media print{
+    #jurnal-table tr{ background:none !important; }
+    #jurnal-table span[style*="border-radius:100px"]{ background:none !important; color:inherit !important; font-weight:700 !important; }
+  }
 </style>
 </head>
 <body>
@@ -662,9 +670,10 @@
 
 <!-- ===== LOADING OVERLAY ===== -->
 <div id="sync-loading-overlay" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(31,46,74,0.55);align-items:center;justify-content:center;">
-  <div style="background:var(--surface);border-radius:var(--radius);padding:22px 32px;box-shadow:var(--shadow);display:flex;align-items:center;gap:12px;font-size:14px;font-weight:600;color:var(--navy);">
+  <div style="background:var(--surface);border-radius:var(--radius);padding:22px 32px;box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;gap:12px;font-size:14px;font-weight:600;color:var(--navy);max-width:320px;text-align:center;">
     <span style="display:inline-block;width:18px;height:18px;border:3px solid var(--line);border-top-color:var(--gold);border-radius:50%;animation:syncspin 0.8s linear infinite;"></span>
-    Memuat data dari cloud...
+    <span id="sync-loading-text">Memuat data dari cloud...</span>
+    <button id="sync-loading-skip-btn" onclick="paksaLanjutkanTanpaSync()" style="display:none;font-size:12px;font-weight:600;color:var(--ink-soft);background:none;border:1px solid var(--line);border-radius:8px;padding:6px 14px;cursor:pointer;">Lanjutkan tanpa menunggu</button>
   </div>
 </div>
 <style>@keyframes syncspin{to{transform:rotate(360deg);}}</style>
@@ -696,7 +705,7 @@
     <div class="nav-item" data-tab="pesan"><span class="ic">&#128231;</span> Pesan dari Kepsek <span id="pesan-badge" style="display:none;background:#D9534F;color:#fff;border-radius:100px;font-size:10.5px;font-weight:700;padding:1px 7px;margin-left:4px;">0</span></div>
     <div class="nav-item" data-tab="pengaturan"><span class="ic">&#9881;</span> Pengaturan</div>
     <a class="nav-item" href="https://www.smpn4semin.sch.id/" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;"><span class="ic">&#127760;</span> Website Sekolah</a>
-    <a class="nav-item" href="https://wali-adm.netlify.app/" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;"><span class="ic">&#127891;</span> Administrasi Wali Kelas</a>
+    <a class="nav-item" href="https://gussno-edu.github.io/adm-wali/" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;"><span class="ic">&#127891;</span> Administrasi Wali Kelas</a>
     <div class="sidebar-foot">
       <button class="theme-toggle" id="logout-btn" style="width:100%;justify-content:center;margin-bottom:8px;" onclick="doLogoutGate()">🔓 Keluar</button>
       <div class="theme-toggle" id="theme-toggle-btn"><span id="theme-toggle-label">Mode Gelap</span><span id="theme-toggle-ic">&#9789;</span></div>
@@ -866,7 +875,7 @@
             </div>
           </div>
           <table>
-            <thead><tr><th>Tanggal</th><th>Kelas</th><th>Mapel</th><th>Jam Ke</th><th>Materi</th><th class="num">Hadir</th><th></th></tr></thead>
+            <thead><tr><th>Hari</th><th>Tanggal</th><th>Kelas</th><th>Mapel</th><th>Jam Ke</th><th>Materi</th><th class="num">Hadir</th><th></th></tr></thead>
             <tbody id="jurnal-table"></tbody>
           </table>
           <div class="empty-msg" id="jurnal-empty" style="display:none;">Belum ada catatan pertemuan.</div>
@@ -2476,15 +2485,21 @@ function currentJurnalFilterList(){
 function renderJurnal(){
   const tbody = document.getElementById('jurnal-table');
   const list = currentJurnalFilterList();
-  document.getElementById('jurnal-count').textContent = jurnalList.length;
+  document.getElementById('jurnal-count').textContent = list.length;
   document.getElementById('jurnal-empty').style.display = list.length ? 'none' : 'block';
+  let tanggalSebelumnya = null;
+  let genapGanjil = 0; // dinaikkan tiap kali TANGGAL berganti -- dasar selang-seling per hari
   tbody.innerHTML = list.map(j => {
     const hadir = (j.presensi || []).filter(p => p.status === 'H').length;
     const total = (j.presensi || []).length;
     // ID dapat berupa angka (lokal, sebelum sinkron) atau teks/UUID (setelah sinkron cloud).
     // JSON.stringify memastikan argumen onclick tetap valid untuk kedua jenis ID.
     const idArg = JSON.stringify(String(j.id));
-    return '<tr><td>'+fmtDate(j.tanggal)+'</td><td>'+escapeHtml(kelasNama(j.kelasId))+'</td><td>'+escapeHtml(mapelNama(j.mapelId))+'</td>'+
+    if(j.tanggal !== tanggalSebelumnya){ genapGanjil++; tanggalSebelumnya = j.tanggal; }
+    const rowBg = (genapGanjil % 2 === 0) ? 'background:var(--surface-2, #F7F8FA);' : '';
+    const kw = warnaKelas(j.kelasId);
+    const kelasBadge = '<span style="display:inline-block;padding:2px 9px;border-radius:100px;font-size:12px;font-weight:600;background:'+kw.bg+';color:'+kw.teks+';">'+escapeHtml(kelasNama(j.kelasId))+'</span>';
+    return '<tr style="'+rowBg+'"><td>'+escapeHtml(namaHariDariTanggal(j.tanggal))+'</td><td>'+fmtDate(j.tanggal)+'</td><td>'+kelasBadge+'</td><td>'+escapeHtml(mapelNama(j.mapelId))+'</td>'+
       '<td>'+escapeHtml(j.jamKe || '-')+'</td><td>'+escapeHtml(j.materi)+'</td><td class="num">'+hadir+'/'+total+'</td>'+
       '<td><button class="icon-btn" onclick=\'openJurnalModal('+idArg+')\' title="Ubah">&#9998;</button>'+
       '<button class="icon-btn danger" onclick=\'deleteJurnal('+idArg+')\' title="Hapus">&#128465;</button></td></tr>';
@@ -2748,6 +2763,21 @@ async function importJadwalExcel(event){
 function namaHariIni(){
   const days = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
   return days[new Date().getDay()];
+}
+function namaHariDariTanggal(tgl){
+  const days = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+  const d = new Date(tgl + 'T00:00:00');
+  return isNaN(d.getTime()) ? '-' : days[d.getDay()];
+}
+// Warna badge kelas: konsisten untuk kelasId yang sama, dipilih dari palet
+// tetap berdasarkan urutan kelasId di kelasList -- supaya warnanya stabil
+// (tidak berubah-ubah tiap render) dan tidak butuh field warna baru di data.
+const PALET_KELAS = ['#E7F0FE','#E4F7EE','#FFF3E0','#F3EAFB','#FDECE8','#FDF3E3','#EAF9F5','#F0EAFB'];
+const PALET_KELAS_TEKS = ['#1D5FBF','#1E8A4C','#C1611E','#7A3FBF','#C13564','#B8860B','#128070','#5B3FBF'];
+function warnaKelas(kelasId){
+  const idx = kelasList.findIndex(k => k.id === kelasId);
+  const i = idx >= 0 ? idx % PALET_KELAS.length : 0;
+  return {bg: PALET_KELAS[i], teks: PALET_KELAS_TEKS[i]};
 }
 function renderJadwalHariIni(){
   const hariIni = namaHariIni();
@@ -4569,27 +4599,59 @@ async function tandaiPesanDibaca(messageId){
 }
 setInterval(() => { if(cloudToken) muatPesanKepsek(); }, 60000); // cek pesan baru tiap 1 menit
 
+let _lanjutkanTanpaSyncResolver = null;
+function paksaLanjutkanTanpaSync(){
+  if(_lanjutkanTanpaSyncResolver) _lanjutkanTanpaSyncResolver();
+}
+
+// PERBAIKAN PENTING: dulu overlay ini disembunyikan berdasarkan Promise.race
+// dengan BATAS WAKTU -- begitu batas waktu lewat, overlay hilang & tombol bisa
+// diklik, PADAHAL proses tarik data di baliknya (yang tidak ikut dibatalkan)
+// masih terus jalan di latar belakang. Kalau tombol simpan/hapus diklik PERSIS
+// di celah waktu itu, hasilnya bisa "ditimpa balik" begitu proses latar
+// belakang itu akhirnya selesai -- persis kejadian nyata yang pernah terjadi.
+//
+// Sekarang: overlay BENAR-BENAR menunggu proses sungguhan selesai (tidak ada
+// lagi race berbasis waktu untuk menyembunyikannya) -- secara fisik tombol
+// tidak mungkin diklik sebelum data siap, karena masih tertutup overlay. Ini
+// TIDAK menambah beban apa pun ke performa sehari-hari: begitu proses selesai
+// (biasanya 1-3 detik berkat tarik-bersamaan tadi), overlay hilang dan
+// aplikasi berjalan normal seperti biasa, tanpa ada pengecekan tambahan di
+// setiap tombol. Kalau koneksi benar-benar bermasalah (>20 detik), muncul
+// tombol darurat "Lanjutkan tanpa menunggu" -- pilihan manual, bukan otomatis.
 async function startAppAfterLogin(){
   document.getElementById('login-gate').style.display = 'none';
   const overlay = document.getElementById('sync-loading-overlay');
+  const overlayText = document.getElementById('sync-loading-text');
+  const skipBtn = document.getElementById('sync-loading-skip-btn');
   if(overlay) overlay.style.display = 'flex';
+  if(skipBtn) skipBtn.style.display = 'none';
+  if(overlayText) overlayText.textContent = 'Memuat data dari cloud...';
   updateCloudStatusUI();
   cloudSyncReady = false;
+
+  const watchdog = setTimeout(() => {
+    if(overlayText) overlayText.textContent = 'Koneksi tampak lambat... proses masih berjalan di latar belakang.';
+    if(skipBtn) skipBtn.style.display = '';
+  }, 20000);
+
+  const pekerjaanNyata = (async () => {
+    await loadAll();
+    await retryPendingQueue(); // kirim dulu perubahan offline yang tertunda, SEBELUM ditarik-ulang dari cloud
+    await Promise.all([resolveInitialSync(), resolveSettingsSync()]);
+    await refreshFromIndexedDB(true);
+  })();
+
+  const jalanDarurat = new Promise(resolve => { _lanjutkanTanpaSyncResolver = resolve; });
+
   try{
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Waktu tunggu habis (30 detik)')), 30000));
-    await Promise.race([
-      (async () => {
-        await loadAll();
-        await retryPendingQueue(); // kirim dulu perubahan offline yang tertunda, SEBELUM ditarik-ulang dari cloud
-        await Promise.all([resolveInitialSync(), resolveSettingsSync()]);
-        await refreshFromIndexedDB(true);
-      })(),
-      timeout
-    ]);
+    await Promise.race([pekerjaanNyata, jalanDarurat]);
   }catch(err){
     console.error('Gagal memuat data saat login:', err);
     showToast('Sebagian data mungkin belum sempat dimuat (koneksi lambat/terputus). Silakan muat ulang halaman.', 'err');
   }
+  clearTimeout(watchdog);
+  _lanjutkanTanpaSyncResolver = null;
   cloudSyncReady = true;
   if(overlay) overlay.style.display = 'none';
   muatPesanKepsek(); // tidak diawait -- tidak boleh menunda tampilnya aplikasi utama
