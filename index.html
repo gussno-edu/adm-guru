@@ -4436,30 +4436,19 @@ async function doLogoutGate(){
 // dan ini pernah benar-benar menyebabkan sheet membengkak tak terkendali di app
 // Wali Kelas (arsitektur serupa). Sekarang: SATU-SATU bergantian, dan ikut
 // memakai cloudSyncBusy yang sama supaya tidak pernah tumpang tindih.
+// PERBAIKAN KECEPATAN: semua 12 tabel sekarang PULL-ONLY (baca saja) saat login
+// -- backend juga sudah dipastikan TIDAK mengunci proses baca (lihat komentar
+// di handleGetAll_ backend: "boleh berjalan bersamaan"). Karena itu, menarik
+// SATU-SATU berurutan (seperti sebelumnya) tidak lagi diperlukan -- itu cuma
+// perlu dulu waktu prosesnya masih ada TULIS yang rawan bentrok kunci. Sekarang
+// ditarik BERSAMAAN (Promise.all) supaya proses login jauh lebih cepat, tanpa
+// menambah risiko apa pun (baca-bersamaan memang aman).
 async function resolveInitialSync(){
   cloudSyncBusy = true;
   try{
-    for(const t of CLOUD_TABLES){
-      if(COLLAB_TABLES.includes(t) || ADMIN_ONLY_TABLES.includes(t)){
-        // Tabel bersama & dikelola-admin sekarang disinkron LANGSUNG per-baris di titik
-        // simpan/hapusnya (lihat cloudSaveRowNow/cloudDeleteRowNow). Sinkron awal di sini
-        // HANYA menarik (pull) dari cloud, TIDAK PERNAH mendorong/menimpa -- supaya cache
-        // lokal perangkat ini yang kebetulan belum lengkap (mis. baru login, koneksi lambat)
-        // tidak pernah menghapus data valid di cloud yang dibuat dari sesi/perangkat lain.
-        await initialSyncCollabTable(t);
-        continue;
-      }
-      let cloudRows = [];
-      try{
-        const res = await cloudCall('getAll', {table:t});
-        cloudRows = res.ok ? res.rows : [];
-      }catch(e){ continue; }
-      if(cloudRows.length){
-        await applyCloudRowsToLocal(t, cloudRows);
-      } else if(getLocalArray(t).length){
-        await pushTableToCloud(t);
-      }
-    }
+    await Promise.all(CLOUD_TABLES.map(t =>
+      initialSyncCollabTable(t).catch(e => console.warn('Gagal tarik tabel', t, e))
+    ));
   } finally {
     cloudSyncBusy = false;
   }
